@@ -37,7 +37,7 @@ app.get('/', (request, response) => {
 
 
 
-app.get('/salesbystore/:id', db.getSalesByStoreId)
+app.get('/salesbystore/:id/product/:productId', db.getSalesByStoreId)
 app.get('/salesbycountries', db.getSalesByCountries)
 app.get('/salesbyproductcategories', db.getFSalesByProductCategories)
 app.get('/salesreport', db.getsalesreport)
