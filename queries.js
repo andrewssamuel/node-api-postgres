@@ -1,7 +1,7 @@
 const Pool = require('pg').Pool
 const pool = new Pool({
   user: 'postgres',
-  host: 'database-2.csqtwfwchjab.us-west-2.rds.amazonaws.com',
+  host: 'bayercrop-db.westus2.cloudapp.azure.com',
   database: 'postgres',
   password: '$ustglobal',
   port: 5432,
@@ -16,13 +16,32 @@ const getSalesByStoreId = (request, response) => {
    console.log(id,productId)
   
   //(SELECT * FROM f_sales_by_store WHERE store_id = $1) union (SELECT * FROM a_sales_by_store WHERE store_id = $1 and year=2017) order by month'
-  pool.query('(SELECT * FROM f_sales_by_store_product WHERE store_id = $1 and product_id = $2) union (SELECT * FROM a_sales_by_store_product_month WHERE store_id = $1 and product_id = $2 and year=2017) order by month', [id,productId], (error, results) => {
+  pool.query("(SELECT product_id,sales_items,store_id,month,year FROM f_sales_by_store_product WHERE store_id = $1 and product_id = $2) union (SELECT product_id,sales_items,store_id,month,year FROM a_sales_store_product_modified WHERE store_id = $1 and product_id = $2 and year=2019) union (select product_id,sales_items,store_id,month, year+5 as year from f_sales_store_product_2019 WHERE store_id = $1 and product_id = $2) order by month", [id,productId], (error, results) => {
     if (error) {
       throw error
     }
     response.status(200).json(results.rows)
   })
 }
+
+
+const updateOverridePO = (request, response) => {
+  
+  var id = request.params.inid
+  var productId = request.params.productId
+  var val = request.params.val
+  console.log(id,productId)
+  //(SELECT * FROM f_sales_by_store WHERE store_id = $1) union (SELECT * FROM a_sales_by_store WHERE store_id = $1 and year=2017) order by month'
+  pool.query('update forcase_override set override = $3 where store_id=$1 and product_id =$2', [id,productId,val], (error, results) => {
+    if (error) {
+      throw error
+    }
+  
+    response.status(200).send("Override Flag Updated!")
+  })
+}
+
+
 
 const getSalesByCountries = (request, response) => {
   const id = parseInt(request.params.id)
@@ -71,10 +90,62 @@ const getsalesbystore = (request, response) => {
   })
 }
 
+const getpurchaseorder = (request, response) => {
+  //const id = parseInt(request.params.id)
+  str_query = "select invoice_number,to_char(to_date(CAST(CONCAT(CAST(year AS text), '/', CAST(month AS text), '/', '01') as text),'YYYY/mm/dd'), 'Month YYYY') as monthyear, sm.store_name, sum(ord_quantity) quantity from purchase_order po, store_master sm where po.store_id = sm.store_id and po.orderedflag is true group by  year, month, invoice_number,sm.store_name order by invoice_number desc"
+  pool.query(str_query,(error, results) => {
+    if (error) {
+      throw error
+    }
+    response.status(200).json(results.rows)
+  })
+}
+
+const getpurchaseorderdetails = (request, response) => {
+  var id = request.params.invoice
+  console.log(id);
+  str_query = "SELECT product_name,ord_quantity,unit_price, (ord_quantity*unit_price) totprice   from purchase_order po, product_master_up pm where po.product_id = pm.product_id and orderedflag is true and invoice_number=$1"
+  pool.query(str_query,[id],(error, results) => {
+    if (error) {
+      throw error
+    }
+    response.status(200).json(results.rows)
+  })
+}
+
+const getpurchaseorderdetailsbymonth = (request, response) => {
+  str_query = "select to_char(to_date(CAST(CONCAT(CAST(year AS text), '/', CAST(month AS text), '/', '01') as text),'YYYY/mm/dd'), 'Mon-YYYY') as monthyear, sm.store_name,pm.product_name, po.ord_quantity,  po.store_id, po.product_id, po.invoice_number, po.forcasted_qty, po.orderedflag,fo.override from purchase_order po, store_master sm, product_master pm, forcase_override fo where po.store_id = sm.store_id and po.product_id = pm.product_id and po.store_id=fo.store_id and po.product_id = fo.product_id and po.predictedflag is true"
+  pool.query(str_query,(error, results) => {
+    if (error) {
+      throw error
+    }
+    response.status(200).json(results.rows)
+  })
+}
+
+
+const createPO = (request, response) => {
+  
+  var id = request.params.inid
+  var productId = request.params.productId
+  var val = request.params.val
+  console.log(id,productId)
+  //(SELECT * FROM f_sales_by_store WHERE store_id = $1) union (SELECT * FROM a_sales_by_store WHERE store_id = $1 and year=2017) order by month'
+  pool.query('update purchase_order set orderedflag = true, ord_quantity=$3 where invoice_number=$1 and product_id =$2', [id,productId,val], (error, results) => {
+    if (error) {
+      throw error
+    }
+  
+    response.status(200).send("Override Flag Updated!")
+  })
+}
+
+
 
 
 
 module.exports = {
-  getSalesByStoreId,getSalesByCountries,getFSalesByProductCategories,getsalesreport,getsalesbystore
+  getSalesByStoreId,getSalesByCountries,getFSalesByProductCategories,getsalesreport,getsalesbystore,getpurchaseorder,getpurchaseorderdetails,getpurchaseorderdetailsbymonth,updateOverridePO,createPO
  
 }
+
